@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read and write only their own movie data
+    match /movies/{movieId} {
+      // Allow reading if the user ID matches
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Allow updating/deleting if the user ID matches
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Allow creating new documents as long as the userId field matches the authenticated user
+      allow create: if request.auth != null && 
+                     request.auth.uid == request.resource.data.userId &&
+                     request.resource.data.title is string &&
+                     request.resource.data.title.size() > 0;
+    }
+    
+    // Block access to all other documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

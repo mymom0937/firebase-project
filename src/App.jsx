@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import "./App.css";
 import { Auth } from "./components/auth";
 import { db, auth } from "./config/firebase";
@@ -41,8 +41,20 @@ function App() {
   const [updateMoviePoster, setUpdateMoviePoster] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
-  // Search
+  // Search with debounce
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  
+  // Debounce search term
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms delay
+    
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
 
   const getMoviesList = async () => {
     if (!user) {
@@ -90,12 +102,18 @@ function App() {
       }
       
       // Client-side search
-      if (searchTerm) {
-        filteredData = filteredData.filter(movie => 
-          movie.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (movie.genre && movie.genre.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (movie.director && movie.director.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+      if (debouncedSearchTerm && debouncedSearchTerm.trim() !== '') {
+        console.log("Searching for:", debouncedSearchTerm);
+        filteredData = filteredData.filter(movie => {
+          const searchLower = debouncedSearchTerm.toLowerCase().trim();
+          const titleMatch = movie.title ? movie.title.toLowerCase().includes(searchLower) : false;
+          const genreMatch = movie.genre ? movie.genre.toLowerCase().includes(searchLower) : false;
+          const directorMatch = movie.director ? movie.director.toLowerCase().includes(searchLower) : false;
+          
+          console.log(`Movie "${movie.title}" matches: ${titleMatch || genreMatch || directorMatch}`);
+          
+          return titleMatch || genreMatch || directorMatch;
+        });
       }
       
       setMovieList(filteredData);
@@ -142,7 +160,7 @@ function App() {
     if (user && !initialLoad) {
       getMoviesList();
     }
-  }, [sortOrder, filterOscar, searchTerm, user]);
+  }, [sortOrder, filterOscar, debouncedSearchTerm, user]);
 
   // Effect to clear success message after a delay
   useEffect(() => {
@@ -449,8 +467,26 @@ function App() {
                 type="text"
                 placeholder="Search movies..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  console.log("Search input changed:", e.target.value);
+                  setSearchTerm(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    console.log("Enter pressed, current search term:", searchTerm);
+                  }
+                }}
               />
+              {searchTerm && (
+                <button 
+                  className="clear-search" 
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
             </div>
             
             <div className="filter-controls">
